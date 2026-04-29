@@ -77,7 +77,10 @@ fi
 
 # ---------- phase 3: formulae ----------------------------------------------
 log_hdr "brew formulae"
-mapfile -t outdated_f < <(brew outdated --formula --quiet 2>/dev/null || true)
+outdated_f=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && outdated_f+=("$line")
+done < <(brew outdated --formula --quiet 2>/dev/null || true)
 if [[ ${#outdated_f[@]} -eq 0 ]]; then
   log_ok "formulae up to date"
 else
@@ -105,7 +108,10 @@ if [[ -z "${MAC_UPDATE_NO_GREEDY:-}" ]]; then
   log_info "including self-updating casks (--greedy-auto-updates)"
 fi
 
-mapfile -t outdated_c < <(brew outdated --cask --quiet "${greedy_flag[@]}" 2>/dev/null || true)
+outdated_c=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && outdated_c+=("$line")
+done < <(brew outdated --cask --quiet "${greedy_flag[@]}" 2>/dev/null || true)
 if [[ ${#outdated_c[@]} -eq 0 ]]; then
   log_ok "casks up to date"
 else
@@ -139,7 +145,13 @@ fi
 # ---------- phase 5: App Store --------------------------------------------
 log_hdr "App Store (mas)"
 if command -v mas >/dev/null 2>&1; then
-  if mas_out=$(mas outdated 2>&1) && [[ -z "$mas_out" ]]; then
+  # stdout = list of outdated apps (one per line); stderr = warnings/deprecations.
+  # Only treat stdout as the source of truth — stderr noise must not trigger an upgrade.
+  mas_err=$(mktemp)
+  mas_out=$(mas outdated 2>"$mas_err") || true
+  [[ -s "$mas_err" ]] && sed 's/^/    /' "$mas_err" >&2
+  rm -f "$mas_err"
+  if [[ -z "$mas_out" ]]; then
     log_ok "App Store apps up to date"
   else
     printf '%s\n' "$mas_out"
