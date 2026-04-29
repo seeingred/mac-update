@@ -31,6 +31,7 @@ failed or timed out.
 | `MAC_UPDATE_CASK_TIMEOUT` | `180` | Per-cask upgrade timeout in seconds |
 | `MAC_UPDATE_NO_MOLE` | unset | Skip the `mo clean` step (for non-interactive runs) |
 | `MAC_UPDATE_NO_GREEDY` | unset | Skip upgrading self-updating casks (Chrome, Raycast, etc.) |
+| `MAC_UPDATE_NO_SKIP` | unset | Ignore the skip list and upgrade everything (e.g. when on VPN) |
 
 ## Prerequisites
 

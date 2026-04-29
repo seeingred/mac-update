@@ -9,6 +9,7 @@
 #   MAC_UPDATE_CASK_TIMEOUT=180           Per-cask upgrade timeout in seconds (default 180)
 #   MAC_UPDATE_NO_MOLE=1                  Skip the mole deep-clean phase
 #   MAC_UPDATE_NO_GREEDY=1                Skip upgrading self-updating casks (Chrome, Arc, Raycast, etc.)
+#   MAC_UPDATE_NO_SKIP=1                  Ignore the skip list and upgrade everything (e.g. when on VPN)
 
 set -uo pipefail
 
@@ -42,10 +43,15 @@ if [[ -n "$SKIP_FILE" && -f "$SKIP_FILE" ]]; then
     line="${line//[[:space:]]/}" # strip whitespace
     [[ -n "$line" ]] && SKIP+=("$line")
   done < "$SKIP_FILE"
-  log_info "skip list: $SKIP_FILE (${#SKIP[@]} entries)"
+  if [[ -n "${MAC_UPDATE_NO_SKIP:-}" ]]; then
+    log_info "skip list: $SKIP_FILE (${#SKIP[@]} entries) — IGNORED (MAC_UPDATE_NO_SKIP set)"
+  else
+    log_info "skip list: $SKIP_FILE (${#SKIP[@]} entries)"
+  fi
 fi
 
 is_skipped() {
+  [[ -n "${MAC_UPDATE_NO_SKIP:-}" ]] && return 1
   local item="$1" s
   for s in "${SKIP[@]}"; do [[ "$s" == "$item" ]] && return 0; done
   return 1
