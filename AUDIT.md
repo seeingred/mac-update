@@ -9,7 +9,7 @@ Generated for `/Applications` on this Mac.
 | 1Password | `1password` | |
 | AltServer | `altserver` | |
 | AmneziaVPN | `amneziavpn` | |
-| Android File Transfer | `android-file-transfer` | |
+| Android File Transfer | `openmtp` | (replaces Google's deprecated x86 AFT; native ARM, open source) |
 | Android Studio | `android-studio` | |
 | Arc | `arc` | |
 | Beamer | `beamer` | |
@@ -25,11 +25,11 @@ Generated for `/Applications` on this Mac.
 | Figma | `figma` | |
 | FineTune | `finetune` | |
 | Firefox | `firefox` | |
-| Flipper | `flipper` | |
+| Flipper | `qflipper` | (Flipper Zero companion app — the `flipper` cask is Meta's discontinued mobile debugger, not this) |
 | Google Chrome | `google-chrome` | |
 | Google Drive | `google-drive` | |
 | Heroic | `heroic` | |
-| IINA | `iina+` | |
+| IINA | `iina` | |
 | Insta360 Link Controller | `insta360-link-controller` | |
 | KeePassXC | `keepassxc` | |
 | Keka | `keka` | |
@@ -102,9 +102,9 @@ Generated for `/Applications` on this Mac.
 
 - AI Sub Translator — personal app
 - DIT — personal app
-- FileZilla
-- FineTune — volume manager, essential
-- FortiClient
+- ~~FileZilla~~ → replaced with Cyberduck (`cyberduck` cask); FileZilla removed from brew due to bundled adware on Mac.
+- ~~FineTune~~ → brew cask `finetune` exists (missed by initial audit); moved to migration list.
+- ~~FortiClient~~ → replaced with `openfortivpn` formula (SSL VPN function only; endpoint-security components were unused).
 - GymNation — personal app
 - NVIDIA AI Workbench
 - Red Shield VPN

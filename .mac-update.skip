@@ -1,0 +1,8 @@
+# Skip list for update.sh — one cask/formula per line.
+# Lines starting with # and empty lines are ignored.
+# Trailing inline comments are stripped.
+
+# Tor Project downloads are blocked without VPN in this network;
+# brew upgrade --cask tor-browser hangs instead of erroring. Update manually
+# on VPN with: brew upgrade --cask tor-browser
+tor-browser
