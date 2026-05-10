@@ -10,6 +10,9 @@
 #   MAC_UPDATE_NO_MOLE=1                  Skip the mole deep-clean phase
 #   MAC_UPDATE_NO_GREEDY=1                Skip upgrading self-updating casks (Chrome, Arc, Raycast, etc.)
 #   MAC_UPDATE_NO_SKIP=1                  Ignore the skip list and upgrade everything (e.g. when on VPN)
+#   MAC_UPDATE_NO_SELFUPDATE=1            Skip the self-update phase
+#   MAC_UPDATE_SELFUPDATE_URL=...         Override raw URL for standalone self-update
+#                                         (default: https://raw.githubusercontent.com/seeingred/mac-update/main/update.sh)
 
 set -uo pipefail
 
@@ -27,8 +30,85 @@ log_warn() { printf "%s[WARN]%s %s\n" "$YELLOW" "$RESET" "$*"; }
 log_err()  { printf "%s[FAIL]%s %s\n" "$RED"    "$RESET" "$*"; }
 log_hdr()  { printf "\n%s%s=== %s ===%s\n" "$BOLD" "$BLUE" "$*" "$RESET"; }
 
-# ---------- skip list ------------------------------------------------------
+# ---------- script location ------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+
+# ---------- phase 0: self-update ------------------------------------------
+# If the script lives inside a clean git checkout: `git pull --ff-only`.
+# Otherwise (single-file install elsewhere): curl the raw script from GitHub,
+# verify it parses, atomic-replace, and re-exec. MAC_UPDATE_SELFUPDATE_RAN
+# guards against re-exec loops.
+self_update() {
+  [[ -n "${MAC_UPDATE_NO_SELFUPDATE:-}" ]] && return 0
+  [[ -n "${MAC_UPDATE_SELFUPDATE_RAN:-}" ]] && return 0
+
+  log_hdr "self-update"
+  local raw_url="${MAC_UPDATE_SELFUPDATE_URL:-https://raw.githubusercontent.com/seeingred/mac-update/main/update.sh}"
+
+  if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    local branch before after
+    branch=$(git -C "$SCRIPT_DIR" symbolic-ref --short HEAD 2>/dev/null || true)
+    if [[ -z "$branch" ]]; then
+      log_warn "detached HEAD — skipping self-update"
+      return 0
+    fi
+    if ! git -C "$SCRIPT_DIR" diff --quiet -- "$SCRIPT_PATH" 2>/dev/null; then
+      log_warn "uncommitted changes to $(basename "$SCRIPT_PATH") — skipping self-update"
+      return 0
+    fi
+    before=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)
+    if ! git -C "$SCRIPT_DIR" pull --ff-only --quiet 2>/dev/null; then
+      log_warn "git pull failed (non-fast-forward, offline, or auth) — continuing with local version"
+      return 0
+    fi
+    after=$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)
+    if [[ "$before" == "$after" ]]; then
+      log_ok "already up to date"
+      return 0
+    fi
+    if git -C "$SCRIPT_DIR" diff --name-only "$before" "$after" 2>/dev/null \
+        | grep -qx "$(basename "$SCRIPT_PATH")"; then
+      log_ok "pulled new $(basename "$SCRIPT_PATH") — re-executing"
+      export MAC_UPDATE_SELFUPDATE_RAN=1
+      exec "$SCRIPT_PATH" "$@"
+    else
+      log_ok "pulled latest (no change to $(basename "$SCRIPT_PATH"))"
+    fi
+    return 0
+  fi
+
+  # Standalone install — fetch raw and replace.
+  if ! command -v curl >/dev/null 2>&1; then
+    log_warn "curl not found — skipping self-update"
+    return 0
+  fi
+  local tmp
+  tmp=$(mktemp) || { log_warn "mktemp failed — skipping self-update"; return 0; }
+  if ! curl -fsSL --max-time 15 "$raw_url" -o "$tmp"; then
+    log_warn "download failed ($raw_url) — continuing with local version"
+    rm -f "$tmp"; return 0
+  fi
+  if ! bash -n "$tmp" 2>/dev/null; then
+    log_warn "downloaded script failed syntax check — discarding"
+    rm -f "$tmp"; return 0
+  fi
+  if cmp -s "$tmp" "$SCRIPT_PATH"; then
+    log_ok "already up to date"
+    rm -f "$tmp"; return 0
+  fi
+  chmod +x "$tmp"
+  if ! mv "$tmp" "$SCRIPT_PATH"; then
+    log_err "failed to replace $SCRIPT_PATH (permission?)"
+    rm -f "$tmp"; return 0
+  fi
+  log_ok "downloaded new version — re-executing"
+  export MAC_UPDATE_SELFUPDATE_RAN=1
+  exec "$SCRIPT_PATH" "$@"
+}
+self_update "$@"
+
+# ---------- skip list ------------------------------------------------------
 SKIP_FILE="${MAC_UPDATE_SKIP:-}"
 if [[ -z "$SKIP_FILE" ]]; then
   if   [[ -f "$SCRIPT_DIR/.mac-update.skip" ]]; then SKIP_FILE="$SCRIPT_DIR/.mac-update.skip"
@@ -117,7 +197,7 @@ fi
 outdated_c=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && outdated_c+=("$line")
-done < <(brew outdated --cask --quiet "${greedy_flag[@]}" 2>/dev/null || true)
+done < <(brew outdated --cask --quiet ${greedy_flag[@]+"${greedy_flag[@]}"} 2>/dev/null || true)
 if [[ ${#outdated_c[@]} -eq 0 ]]; then
   log_ok "casks up to date"
 else

@@ -7,8 +7,6 @@ Homebrew + App Store (+ macOS built-in updater) as sources of truth.
 
 - [`update.sh`](update.sh) — the main update/cleanup runner
 - [`.mac-update.skip`](.mac-update.skip) — casks/formulae to skip (blocked downloads, problematic upgrades)
-- [`AUDIT.md`](AUDIT.md) — classification of every app in `/Applications` at migration time
-- [`MIGRATION.md`](MIGRATION.md) — the one-off checklist used to move everything to brew
 
 ## Usage
 
@@ -16,9 +14,9 @@ Homebrew + App Store (+ macOS built-in updater) as sources of truth.
 ./update.sh
 ```
 
-Runs, in order: `brew update` → formulae → casks (incl. self-updating, per-cask timeout) →
-App Store (`mas`) → macOS updates (list only) → `brew cleanup -s` → `brew autoremove` →
-`mo clean` (interactive mole).
+Runs, in order: self-update → `brew update` → formulae → casks (incl. self-updating,
+per-cask timeout) → App Store (`mas`) → macOS updates (list only) → `brew cleanup -s` →
+`brew autoremove` → `mo clean` (interactive mole).
 
 Continues on error. Prints an ✅ / ⏱ / ❌ summary at the end and exits non-zero if anything
 failed or timed out.
@@ -32,6 +30,8 @@ failed or timed out.
 | `MAC_UPDATE_NO_MOLE` | unset | Skip the `mo clean` step (for non-interactive runs) |
 | `MAC_UPDATE_NO_GREEDY` | unset | Skip upgrading self-updating casks (Chrome, Raycast, etc.) |
 | `MAC_UPDATE_NO_SKIP` | unset | Ignore the skip list and upgrade everything (e.g. when on VPN) |
+| `MAC_UPDATE_NO_SELFUPDATE` | unset | Skip the self-update phase |
+| `MAC_UPDATE_SELFUPDATE_URL` | GitHub raw `main` | Override the URL fetched for standalone self-update |
 
 ## Prerequisites
 
@@ -61,6 +61,19 @@ The script detects these dynamically by reading
 `kMDItemAppStoreReceiptType` from each outdated app's bundle: `ProductionVPP`
 means MDM-deployed (auto-skipped — your MDM ships updates), `Production` means
 personal purchase (upgraded normally). No list to maintain.
+
+## Self-update
+
+On every run the script first updates itself:
+
+- **Inside a git checkout:** `git pull --ff-only` on the current branch. Skipped if
+  the working copy of `update.sh` has uncommitted changes, the branch is detached,
+  or the pull isn't a fast-forward.
+- **Standalone (single-file install):** downloads the raw script from GitHub,
+  syntax-checks it with `bash -n`, atomic-replaces, and re-executes.
+
+Disable with `MAC_UPDATE_NO_SELFUPDATE=1`. Re-exec is guarded by
+`MAC_UPDATE_SELFUPDATE_RAN` so a freshly pulled script can't loop.
 
 ## Non-interactive / scheduled runs
 
