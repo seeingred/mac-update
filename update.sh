@@ -149,6 +149,11 @@ else
 fi
 
 # ---------- phase 5: App Store --------------------------------------------
+# mas-cli cannot update VPP/MDM-deployed apps (Hexnode etc.) — Apple's private
+# StoreKit path doesn't accept the company VPP token, so each attempt fails with
+# "No downloads initiated" and triggers a "you don't own this product" sheet.
+# We detect them dynamically via Spotlight metadata: kMDItemAppStoreReceiptType
+# is "ProductionVPP" for managed installs, "Production" for personal purchases.
 log_hdr "App Store (mas)"
 if command -v mas >/dev/null 2>&1; then
   # stdout = list of outdated apps (one per line); stderr = warnings/deprecations.
@@ -161,12 +166,41 @@ if command -v mas >/dev/null 2>&1; then
     log_ok "App Store apps up to date"
   else
     printf '%s\n' "$mas_out"
-    if mas upgrade; then
-      log_ok "App Store upgrades done"
-    else
-      log_err "mas upgrade had errors"
-      FAILED+=("mas")
-    fi
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      # mas outdated format:  "<id>  <name>  (<old> -> <new>)"
+      id="${line%%[[:space:]]*}"
+      [[ -z "$id" || ! "$id" =~ ^[0-9]+$ ]] && continue
+      name=$(printf '%s' "$line" | sed -E "s/^${id}[[:space:]]+//; s/[[:space:]]+\([^)]+\)[[:space:]]*$//")
+
+      bundle=$(mdfind "kMDItemAppStoreAdamID == $id" 2>/dev/null | head -n1)
+      receipt_type=""
+      if [[ -n "$bundle" && -d "$bundle" ]]; then
+        receipt_type=$(mdls -raw -name kMDItemAppStoreReceiptType "$bundle" 2>/dev/null)
+        [[ "$receipt_type" == "(null)" ]] && receipt_type=""
+      fi
+
+      if [[ "$receipt_type" == "ProductionVPP" ]]; then
+        log_warn "skip mas (VPP/MDM-managed): $name [$id] — updated via MDM, not mas"
+        SKIPPED+=("mas:$name")
+        continue
+      fi
+
+      if is_skipped "mas:$id" || is_skipped "mas:$name"; then
+        log_warn "skip mas: $name [$id]"
+        SKIPPED+=("mas:$name")
+        continue
+      fi
+
+      log_info "upgrade mas: $name [$id]"
+      if mas upgrade "$id"; then
+        log_ok "upgraded mas: $name"
+        UPGRADED+=("mas:$name")
+      else
+        log_err "failed mas: $name [$id] — try updating via App Store.app"
+        FAILED+=("mas:$name")
+      fi
+    done <<<"$mas_out"
   fi
 else
   log_warn "mas not installed (brew install mas)"

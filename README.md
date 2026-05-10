@@ -46,7 +46,21 @@ failed or timed out.
 # Comments start with #
 tor-browser       # blocked without VPN
 someflakycask     # takes forever to download
+mas:310633997     # mas app by ADAM ID (e.g. WhatsApp)
+mas:WhatsApp      # mas app by name (matches `mas outdated` second column)
 ```
+
+## App Store apps & MDM (VPP)
+
+`mas-cli` cannot update apps deployed via Apple Business Manager VPP (Hexnode,
+Jamf, Kandji, etc.) — the private StoreKit endpoint it uses doesn't accept the
+company VPP token, so each attempt fails with `No downloads initiated for ADAM
+ID …` and pops a misleading "you don't own this product" sheet.
+
+The script detects these dynamically by reading
+`kMDItemAppStoreReceiptType` from each outdated app's bundle: `ProductionVPP`
+means MDM-deployed (auto-skipped — your MDM ships updates), `Production` means
+personal purchase (upgraded normally). No list to maintain.
 
 ## Non-interactive / scheduled runs
 
