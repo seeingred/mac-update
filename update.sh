@@ -16,6 +16,9 @@
 
 set -uo pipefail
 
+# Bumped on every commit. SemVer: MAJOR=breaking, MINOR=feature, PATCH=fix.
+VERSION="1.0.0"
+
 # ---------- colors ---------------------------------------------------------
 if [[ -t 1 ]]; then
   RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BLUE=$'\033[34m'
@@ -29,6 +32,9 @@ log_ok()   { printf "%s[ OK ]%s %s\n" "$GREEN"  "$RESET" "$*"; }
 log_warn() { printf "%s[WARN]%s %s\n" "$YELLOW" "$RESET" "$*"; }
 log_err()  { printf "%s[FAIL]%s %s\n" "$RED"    "$RESET" "$*"; }
 log_hdr()  { printf "\n%s%s=== %s ===%s\n" "$BOLD" "$BLUE" "$*" "$RESET"; }
+
+# ---------- banner ---------------------------------------------------------
+printf "%smac-update v%s%s\n" "$BOLD" "$VERSION" "$RESET"
 
 # ---------- script location ------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
